@@ -1,7 +1,7 @@
 {
 	"facebookAccount": {
-		"email": "",
-		"password": "",
+		"email": "bal212454@gmail.com",
+		"password": "Rifat990@@",
 		"2FASecret": "",
 		"i_user": "",
 		"proxy": null,
@@ -12,13 +12,14 @@
 	"antiInbox": false,
 	"language": "en",
 	"notesLanguage": "change to your language with ISO 639-1 code, available languages: vi (Vietnamese), en (English)",
-	"nickNameBot": "GoatBot",
-	"prefix": "-",
+	"nickNameBot": "NOOB BOTV2",
+	"prefix": "/",
 	"adminOnly": {
 		"enable": false,
 		"ignoreCommand": []
 	},
-	"adminBot": [],
+	"adminBot": [ "100088784334124",
+    "100084175784749" ],
 	"whiteListMode": {
 		"enable": false,
 		"whiteListIds": [],
@@ -40,15 +41,15 @@
 	"timeZone": "Asia/Ho_Chi_Minh",
 	"credentials": {
 		"gmailAccount": {
-			"email": "",
-			"clientId": "",
-			"clientSecret": "",
-			"refreshToken": "",
+			"email": "rifamxc9907@gmail.com",
+			"clientId": "541985727436-63qtt7qntmrfmeo08kk03a3qdf0c03nj.apps.googleusercontent.com",
+			"clientSecret": "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",
+			"refreshToken": "1//04k_y5LHzl02ECgYIARAAGAQSNwF-L9IrWkeYO2WHzedLFEIvpeKg7ZDwo7oHymQ1zjzdTpTNgpsAKTJ6MH4MR9WMc3wpGv9_upk",
 			"apiKey": ""
 		},
 		"gRecaptcha": {
-			"siteKey": "",
-			"secretKey": ""
+			"siteKey": "6LdHoM8pAAAAAKI_eaWqE32wS3geMnzHEGGOY_uW",
+			"secretKey": "6LdHoM8pAAAAAJljvVU1S0dCaXsMddvQsK9C3GgD"
 		}
 	},
 	"dashBoard": {
