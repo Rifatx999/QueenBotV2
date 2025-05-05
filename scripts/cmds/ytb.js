@@ -1,96 +1,133 @@
-const fs = require('fs-extra');
-const path = require('path');
-const axios = require('axios');
-const { exec } = require('child_process');
-const { formatNumber } = global.utils;
-
-const YT_API_KEY = 'AIzaSyDYFu-jPat_hxdssXEK4y2QmCOkefEGnso';
-const TEMP_DIR = path.join(__dirname, 'temp');
-const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
-
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
+const axios = require("axios");
+const fs = require("fs-extra");
+const ytdl = require("@distube/ytdl-core");
+const { exec } = require("child_process");
+const path = require("path");
 
 module.exports = {
   config: {
     name: "ytb",
-    aliases: ["yt", "youtube"],
-    version: "1.0",
-    author: "Rifat",
+    aliases: ["yt"],
+    version: "1.1",
+    author: "rifat",
     countDown: 5,
     role: 0,
-    shortDescription: "Download YouTube video/audio",
-    longDescription: "Search or download YouTube video/audio using yt-dlp with cookies",
+    shortDescription: {
+      en: "Download YouTube video/audio",
+      vi: "Tải video/âm thanh YouTube",
+      bn: "ইউটিউব ভিডিও/অডিও ডাউনলোড করুন"
+    },
+    longDescription: {
+      en: "Search and download YouTube videos as audio or video",
+      vi: "Tìm kiếm và tải video từ YouTube",
+      bn: "ইউটিউব থেকে ভিডিও অথবা অডিও খুঁজে এবং ডাউনলোড করুন"
+    },
     category: "media",
-    guide: "{pn} [video|audio] [name or YouTube link]"
-  },
-
-  langs: {
-    en: {
-      missingArgs: "Please use: ytb [video|audio] [query or link]",
-      downloading: "Downloading %1...",
-      success: "✅ Sent: %1",
-      tooLarge: "❌ File too large to send (max: %1MB)",
-      error: "❌ Error: %1",
-      noResult: "❌ No results found.",
-      invalid: "❌ Invalid YouTube link or query."
+    guide: {
+      en: "{pn} -v <video name or link>\n{pn} -a <video name or link>",
+      vi: "{pn} -v <tên hoặc liên kết video>\n{pn} -a <tên hoặc liên kết video>",
+      bn: "{pn} -v <ভিডিও নাম বা লিংক>\n{pn} -a <ভিডিও নাম বা লিংক>"
     }
   },
 
-  onStart: async function ({ message, args, event, commandName, api }) {
-    const type = args[0];
-    const query = args.slice(1).join(" ").trim();
+  onStart: async function ({ api, event, args, message, getLang }) {
+    const mode = args[0];
+    if (!["-v", "-a", "video", "audio"].includes(mode))
+      return message.reply(getLang("guide"));
 
-    if (!type || !query || !['video', 'audio'].includes(type))
-      return message.reply(this.langs.en.missingArgs);
+    const type = ["-v", "video"].includes(mode) ? "video" : "audio";
+    const query = args.slice(1).join(" ");
+    if (!query) return message.reply(getLang("guide"));
 
-    try {
-      const isLink = query.includes("youtube.com") || query.includes("youtu.be");
-      let videoUrl = query;
+    let videoId, title;
 
-      if (!isLink) {
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&maxResults=1&type=video&key=${YT_API_KEY}`;
-        const res = await axios.get(searchUrl);
-        if (!res.data.items.length) return message.reply(this.langs.en.noResult);
-        const videoId = res.data.items[0].id.videoId;
-        videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      }
-
-      const outputName = `ytb_${Date.now()}.${type === "audio" ? "mp3" : "mp4"}`;
-      const outputPath = path.join(TEMP_DIR, outputName);
-
-      const cmd = `yt-dlp "${videoUrl}" --cookies "${COOKIES_PATH}" -o "${outputPath}" --no-playlist`;
-      await message.reply(this.langs.en.downloading.replace('%1', type));
-      
-      await execPromise(cmd);
-
-      if (!fs.existsSync(outputPath)) return message.reply(this.langs.en.error.replace('%1', "File not found"));
-
-      const stats = fs.statSync(outputPath);
-      const maxSize = type === "audio" ? 26 * 1024 * 1024 : 83 * 1024 * 1024;
-
-      if (stats.size > maxSize) {
-        fs.unlinkSync(outputPath);
-        return message.reply(this.langs.en.tooLarge.replace('%1', type === "audio" ? "26" : "83"));
-      }
-
-      await message.reply({
-        body: this.langs.en.success.replace('%1', outputName),
-        attachment: fs.createReadStream(outputPath)
+    const match = query.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+    if (match) {
+      videoId = match[1];
+      const info = await ytdl.getInfo(videoId);
+      title = info.videoDetails.title;
+    } else {
+      const API_KEY = "AIzaSyDYFu-jPat_hxdssXEK4y2QmCOkefEGnso";
+      const res = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: {
+          key: API_KEY,
+          q: query,
+          part: "snippet",
+          maxResults: 6,
+          type: "video"
+        }
       });
 
-      fs.unlinkSync(outputPath);
-    } catch (err) {
-      return message.reply(this.langs.en.error.replace('%1', err.message));
+      const results = res.data.items;
+      if (!results.length) return message.reply(getLang("noResults"));
+
+      let replyText = getLang("chooseVideo") + "\n\n";
+      results.forEach((item, i) => {
+        replyText += `${i + 1}. ${item.snippet.title} (${item.snippet.channelTitle})\n`;
+      });
+
+      return message.reply(replyText.trim(), (err, info) => {
+        global.GoatBot.onReply.set(info.messageID, {
+          commandName: "ytb",
+          messageID: info.messageID,
+          author: event.senderID,
+          type,
+          results
+        });
+      });
     }
+
+    return download({ videoId, title, type, message, getLang });
+  },
+
+  onReply: async ({ event, message, Reply, getLang }) => {
+    if (event.senderID !== Reply.author) return;
+
+    const choice = parseInt(event.body);
+    if (isNaN(choice) || choice < 1 || choice > Reply.results.length)
+      return message.reply(getLang("invalidChoice"));
+
+    const selected = Reply.results[choice - 1];
+    const videoId = selected.id.videoId;
+    const title = selected.snippet.title;
+
+    await download({ videoId, title, type: Reply.type, message, getLang });
   }
 };
 
-// Helper to promisify exec
-function execPromise(cmd) {
-  return new Promise((resolve, reject) => {
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) reject(error);
-      else resolve(stdout);
+async function download({ videoId, title, type, message, getLang }) {
+  const maxSize = type === "video" ? 83 * 1024 * 1024 : 26 * 1024 * 1024;
+  const ext = type === "video" ? "mp4" : "mp3";
+  const filePath = path.join(__dirname, "cache", `${videoId}_${Date.now()}.${ext}`);
+
+  const loadingMsg = await message.reply(getLang("downloading"));
+
+  const command = `yt-dlp -f "${type === "video" ? 'mp4' : 'bestaudio'}" --cookies cookies.txt -o "${filePath}" "https://www.youtube.com/watch?v=${videoId}"`;
+
+  const animation = ["▘", "▝", "▗", "▖"];
+  let index = 0;
+  const interval = setInterval(() => {
+    message.edit(loadingMsg.messageID, `${getLang("downloading")} ${animation[index++ % animation.length]}`);
+  }, 400);
+
+  exec(command, async (err) => {
+    clearInterval(interval);
+
+    if (err || !fs.existsSync(filePath)) {
+      return message.reply(getLang("downloadFailed"));
+    }
+
+    const stats = await fs.stat(filePath);
+    if (stats.size > maxSize) {
+      await fs.unlink(filePath);
+      return message.reply(getLang("tooLarge", (stats.size / 1024 / 1024).toFixed(2)));
+    }
+
+    await message.reply({
+      body: title,
+      attachment: fs.createReadStream(filePath)
     });
+
+    await fs.unlink(filePath);
   });
 }
