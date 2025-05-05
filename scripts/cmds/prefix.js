@@ -6,10 +6,10 @@ module.exports = {
     config: {
         name: "prefix",
         version: "1.8",
-        author: "Priyanshi Kaur",
+        author: "Rifat",
         countDown: 5,
         role: 0,
-        description: "Change the command prefix for Queen Bot V2 or view bot information",
+        description: "Change the command prefix for Noob Bot V2 or view bot information",
         category: "config",
         guide: {
             en: "   {pn}: show bot information and current prefix"
@@ -25,18 +25,18 @@ module.exports = {
         en: {
             reset: "Your prefix has been reset to default: %1",
             onlyAdmin: "Only admin can change prefix of system bot",
-            confirmGlobal: "Please react to this message with any emoji to confirm changing the prefix of Queen Bot V2",
+            confirmGlobal: "Please react to this message with any emoji to confirm changing the prefix of Noob Bot V2",
             confirmThisThread: "Please react to this message with any emoji to confirm changing the prefix in your chat box",
-            successGlobal: "Changed prefix of Queen Bot V2 to: %1",
+            successGlobal: "Changed prefix of Noob Bot V2 to: %1",
             successThisThread: "Changed prefix in your chat box to: %1",
-            botInfo: "✨ Queen Bot V2 - Your Cute Assistant ✨\n\n"
+            botInfo: "✨ Noob Bot V2 - Your Smart Assistant ✨\n\n"
                 + "🌸 Current system prefix: %1\n"
                 + "🎀 Current chat box prefix: %2\n\n"
                 + "Available commands:\n"
                 + "🤖 AI - Always here to help you, your assistant\n"
                 + "🎨 Flux - No prefix cmd, allows you to generate your imagination\n"
                 + "🧠 .g - Gemini 1.5 flash response to your every question and image reply support\n"
-                + "🎵 .sing - Listen songs from youtube search by the name.\n\n"
+                + "🎵 .sing - Listen songs from YouTube search by the name.\n\n"
                 + "Feel free to ask me anything! I'm here to make your day brighter! 💖",
             error: "❌ An error occurred while fetching the meme. Please try again."
         }
