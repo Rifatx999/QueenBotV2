@@ -16,7 +16,7 @@ const { isHexColor, colors } = require("./func/colors.js");
 const Prism = require("./func/prism.js");
 
 const { config } = global.GoatBot;
-const { gmailAccount } = config.credentials.gmailAccount;
+const { gmailAccount } = config.credentials;
 const { clientId, clientSecret, refreshToken, apiKey: googleApiKey } = gmailAccount;
 if (!clientId) {
 	log.err("CREDENTIALS", `Please provide a valid clientId in file ${path.normalize(global.client.dirConfig)}`);
