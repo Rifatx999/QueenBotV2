@@ -16,7 +16,19 @@ const { isHexColor, colors } = require("./func/colors.js");
 const Prism = require("./func/prism.js");
 
 const { config } = global.GoatBot;
-const { gmailAccount } = config.credentials;
+let gmailAccount = null;
+
+if (
+  config &&
+  typeof config === 'object' &&
+  config.credentials &&
+  typeof config.credentials === 'object' &&
+  config.credentials.gmailAccount
+) {
+  gmailAccount = config.credentials.gmailAccount;
+} else {
+  throw new Error("Missing or invalid 'gmailAccount' in config.credentials.");
+};
 const { clientId, clientSecret, refreshToken, apiKey: googleApiKey } = gmailAccount;
 if (!clientId) {
 	log.err("CREDENTIALS", `Please provide a valid clientId in file ${path.normalize(global.client.dirConfig)}`);
