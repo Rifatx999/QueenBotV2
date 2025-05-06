@@ -1,93 +1,47 @@
 const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
-const cron = require("node-cron");
-
-const configPath = path.join(__dirname, "cache", "prayer_config.json");
-
-if (!fs.existsSync(configPath)) {
-  fs.writeJsonSync(configPath, { active: false });
-}
-
-let sentTimes = [];
 
 module.exports = {
   config: {
-    name: "prayer",
-    version: "1.0",
-    hasPermssion: 1,
+    name: "weather",
+    version: "2.0",
+    hasPermssion: 0,
     credits: "rifat",
-    description: "Auto prayer reminder for BD",
+    description: "Detailed weather with forecast",
     commandCategory: "utility",
-    usages: "[on/off/status]",
+    usages: "[location]",
     cooldowns: 5,
   },
 
   onStart: async function ({ message, args }) {
-    const arg = args[0]?.toLowerCase();
-    const config = fs.readJsonSync(configPath);
+    const location = args.join(" ") || "Dhaka";
 
-    if (!arg || !["on", "off", "status"].includes(arg)) {
-      return message.reply("Usage:\n• prayer on\n• prayer off\n• prayer status");
-    }
+    try {
+      const res = await axios.get(`https://wttr.in/${encodeURIComponent(location)}?format=j1`);
+      const data = res.data;
 
-    if (arg === "on") {
-      if (config.active) return message.reply("Already ON.");
-      config.active = true;
-      fs.writeJsonSync(configPath, config);
-      return message.reply("✅ Prayer notification is ON.");
-    }
+      const current = data.current_condition[0];
+      const today = data.weather[0];
+      const tomorrow = data.weather[1];
+      const nextDay = data.weather[2];
 
-    if (arg === "off") {
-      if (!config.active) return message.reply("Already OFF.");
-      config.active = false;
-      fs.writeJsonSync(configPath, config);
-      return message.reply("❌ Prayer notification is OFF.");
-    }
+      const msg = `
+📍 Weather for: ${data.nearest_area[0].areaName[0].value}, ${data.nearest_area[0].country[0].value}
 
-    if (arg === "status") {
-      return message.reply(`Prayer notifications: ${config.active ? "✅ ON" : "❌ OFF"}`);
+🌤 Current: ${current.temp_C}°C (Feels like ${current.FeelsLikeC}°C)
+☁️ Condition: ${current.weatherDesc[0].value}
+💧 Humidity: ${current.humidity}%
+🌬 Wind: ${current.windspeedKmph} km/h
+
+📅 Forecast:
+• Today: ${today.avgtempC}°C - ${today.hourly[4].weatherDesc[0].value}
+• Tomorrow: ${tomorrow.avgtempC}°C - ${tomorrow.hourly[4].weatherDesc[0].value}
+• Next Day: ${nextDay.avgtempC}°C - ${nextDay.hourly[4].weatherDesc[0].value}
+      `.trim();
+
+      return message.reply(msg);
+    } catch (e) {
+      console.log(e);
+      return message.reply("Couldn't fetch weather data. Try again later.");
     }
   },
-
-  onLoad: async function ({ api }) {
-    cron.schedule("* * * * *", async () => {
-      const config = fs.readJsonSync(configPath);
-      if (!config.active) return;
-
-      try {
-        const { data } = await axios.get("https://api.aladhan.com/v1/timingsByCity?city=Dhaka&country=Bangladesh&method=3");
-        const now = new Date();
-        const hours = now.getHours().toString().padStart(2, "0");
-        const minutes = now.getMinutes().toString().padStart(2, "0");
-        const currentTime = `${hours}:${minutes}`;
-
-        const prayerTimes = data.data.timings;
-        const names = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
-        const banglaNames = {
-          Fajr: "ফজর",
-          Dhuhr: "জোহর",
-          Asr: "আসর",
-          Maghrib: "মাগরিব",
-          Isha: "এশা"
-        };
-
-        for (const prayer of names) {
-          const time = prayerTimes[prayer].substring(0, 5);
-          if (time === currentTime && !sentTimes.includes(time + prayer)) {
-            const groups = await api.getThreadList(20, null, ["INBOX"]);
-            for (const group of groups) {
-              if (group.isGroup) {
-                api.sendMessage(`নামাজের নাম (${banglaNames[prayer]}) সময় হয়েছে সবাই নামাজ আদায় করুন।`, group.threadID);
-              }
-            }
-            sentTimes.push(time + prayer);
-            if (sentTimes.length > 20) sentTimes.shift();
-          }
-        }
-      } catch (e) {
-        console.log("[PRAYER] Error fetching prayer time:", e.message);
-      }
-    });
-  }
 };
