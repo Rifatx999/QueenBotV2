@@ -1,133 +1,121 @@
-const axios = require("axios");
-const fs = require("fs-extra");
-const ytdl = require("@distube/ytdl-core");
-const { exec } = require("child_process");
+const fs = require("fs");
 const path = require("path");
+const ytdlp = require("yt-dlp-exec");
+const axios = require("axios");
+const { execSync } = require("child_process");
 
 module.exports = {
   config: {
     name: "ytb",
-    aliases: ["yt"],
-    version: "1.1",
-    author: "rifat",
+    version: "2.1",
+    author: "Rifat",
     countDown: 5,
     role: 0,
     shortDescription: {
       en: "Download YouTube video/audio",
-      vi: "Tải video/âm thanh YouTube",
-      bn: "ইউটিউব ভিডিও/অডিও ডাউনলোড করুন"
+      vi: "Tải video/audio từ YouTube"
     },
     longDescription: {
-      en: "Search and download YouTube videos as audio or video",
-      vi: "Tìm kiếm và tải video từ YouTube",
-      bn: "ইউটিউব থেকে ভিডিও অথবা অডিও খুঁজে এবং ডাউনলোড করুন"
+      en: "Search or provide YouTube link to download video or audio",
+      vi: "Tìm kiếm hoặc cung cấp liên kết YouTube để tải video hoặc audio"
     },
     category: "media",
     guide: {
-      en: "{pn} -v <video name or link>\n{pn} -a <video name or link>",
-      vi: "{pn} -v <tên hoặc liên kết video>\n{pn} -a <tên hoặc liên kết video>",
-      bn: "{pn} -v <ভিডিও নাম বা লিংক>\n{pn} -a <ভিডিও নাম বা লিংক>"
+      en: "{pn} [name or link]",
+      vi: "{pn} [tên hoặc liên kết]"
     }
   },
 
-  onStart: async function ({ api, event, args, message, getLang }) {
-    const mode = args[0];
-    if (!["-v", "-a", "video", "audio"].includes(mode))
-      return message.reply(getLang("guide"));
-
-    const type = ["-v", "video"].includes(mode) ? "video" : "audio";
-    const query = args.slice(1).join(" ");
-    if (!query) return message.reply(getLang("guide"));
-
-    let videoId, title;
-
-    const match = query.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-    if (match) {
-      videoId = match[1];
-      const info = await ytdl.getInfo(videoId);
-      title = info.videoDetails.title;
-    } else {
-      const API_KEY = "AIzaSyDYFu-jPat_hxdssXEK4y2QmCOkefEGnso";
-      const res = await axios.get("https://www.googleapis.com/youtube/v3/search", {
-        params: {
-          key: API_KEY,
-          q: query,
-          part: "snippet",
-          maxResults: 6,
-          type: "video"
-        }
-      });
-
-      const results = res.data.items;
-      if (!results.length) return message.reply(getLang("noResults"));
-
-      let replyText = getLang("chooseVideo") + "\n\n";
-      results.forEach((item, i) => {
-        replyText += `${i + 1}. ${item.snippet.title} (${item.snippet.channelTitle})\n`;
-      });
-
-      return message.reply(replyText.trim(), (err, info) => {
-        global.GoatBot.onReply.set(info.messageID, {
-          commandName: "ytb",
-          messageID: info.messageID,
-          author: event.senderID,
-          type,
-          results
-        });
-      });
+  onStart: async function ({ args, message, event, commandName }) {
+    // Ensure yt-dlp is installed
+    try {
+      execSync("yt-dlp --version", { stdio: "ignore" });
+    } catch (err) {
+      message.reply("Installing yt-dlp globally using pip...");
+      try {
+        execSync("pip install yt-dlp", { stdio: "inherit" });
+        message.reply("✅ yt-dlp installed successfully.");
+      } catch (installErr) {
+        return message.reply("❌ Failed to install yt-dlp. Please install it manually: `pip install yt-dlp`");
+      }
     }
 
-    return download({ videoId, title, type, message, getLang });
+    if (!args[0]) return message.reply("Please enter a YouTube link or search term.");
+
+    const query = args.join(" ");
+    const ytLinkRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w\-]+/;
+    const link = query.match(ytLinkRegex)?.[0];
+
+    if (link) {
+      return await downloadYT(link, message, event);
+    }
+
+    // Search mode
+    const apiKey = "AIzaSyDYFu-jPat_hxdssXEK4y2QmCOkefEGnso";
+    const res = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+      params: {
+        q: query,
+        key: apiKey,
+        maxResults: 6,
+        part: "snippet",
+        type: "video"
+      }
+    });
+
+    const results = res.data.items;
+    if (results.length === 0) return message.reply("No results found.");
+
+    let text = "Choose a video to download:\n\n";
+    results.forEach((v, i) => {
+      text += `${i + 1}. ${v.snippet.title}\n`;
+    });
+
+    message.reply(text + "\nReply with a number (1-6).", (err, info) => {
+      global.GoatBot.onReply.set(info.messageID, {
+        commandName,
+        messageID: info.messageID,
+        author: event.senderID,
+        results
+      });
+    });
   },
 
-  onReply: async ({ event, message, Reply, getLang }) => {
+  onReply: async function ({ message, event, Reply }) {
     if (event.senderID !== Reply.author) return;
 
     const choice = parseInt(event.body);
     if (isNaN(choice) || choice < 1 || choice > Reply.results.length)
-      return message.reply(getLang("invalidChoice"));
+      return message.reply("Invalid number!");
 
-    const selected = Reply.results[choice - 1];
-    const videoId = selected.id.videoId;
-    const title = selected.snippet.title;
-
-    await download({ videoId, title, type: Reply.type, message, getLang });
+    const videoId = Reply.results[choice - 1].id.videoId;
+    const link = `https://www.youtube.com/watch?v=${videoId}`;
+    await downloadYT(link, message, event);
   }
 };
 
-async function download({ videoId, title, type, message, getLang }) {
-  const maxSize = type === "video" ? 83 * 1024 * 1024 : 26 * 1024 * 1024;
-  const ext = type === "video" ? "mp4" : "mp3";
-  const filePath = path.join(__dirname, "cache", `${videoId}_${Date.now()}.${ext}`);
+async function downloadYT(link, message, event) {
+  const id = `${Date.now()}_${event.threadID}`;
+  const filePath = path.join(__dirname, "..", "tmp", `${id}.mp4`);
 
-  const loadingMsg = await message.reply(getLang("downloading"));
+  message.reply("⏳ Downloading video...");
 
-  const command = `yt-dlp -f "${type === "video" ? 'mp4' : 'bestaudio'}" --cookies cookies.txt -o "${filePath}" "https://www.youtube.com/watch?v=${videoId}"`;
+  try {
+    await ytdlp(link, {
+      format: "mp4",
+      output: filePath,
+      cookies: "cookies.txt"
+    });
 
-  const animation = ["▘", "▝", "▗", "▖"];
-  let index = 0;
-  const interval = setInterval(() => {
-    message.edit(loadingMsg.messageID, `${getLang("downloading")} ${animation[index++ % animation.length]}`);
-  }, 400);
-
-  exec(command, async (err) => {
-    clearInterval(interval);
-
-    if (err || !fs.existsSync(filePath)) {
-      return message.reply(getLang("downloadFailed"));
-    }
-
-    const stats = await fs.stat(filePath);
-    if (stats.size > maxSize) {
-      await fs.unlink(filePath);
-      return message.reply(getLang("tooLarge", (stats.size / 1024 / 1024).toFixed(2)));
-    }
+    if (!fs.existsSync(filePath)) return message.reply("❌ Video not found after download.");
 
     await message.reply({
-      body: title,
+      body: "✅ Here's your video:",
       attachment: fs.createReadStream(filePath)
     });
 
-    await fs.unlink(filePath);
-  });
+    fs.unlinkSync(filePath);
+  } catch (err) {
+    console.error("yt-dlp error:", err);
+    return message.reply("❌ Failed to download the video.");
+  }
 }
