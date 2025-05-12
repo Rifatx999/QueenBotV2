@@ -1,8 +1,4 @@
-/cmd install slowmode.js const fs = require("fs");
-const path = require("path");
-
-const cacheDir = path.join(__dirname, "cache");
-const SLOWMODE_FILE = path.join(cacheDir, "slowmode.json");
+const fs = require("fs");const path = require("path");const cacheDir = path.join(__dirname, "cache");const SLOWMODE_FILE = path.join(cacheDir, "slowmode.json");
 
 // Create "cache" directory if it doesn't exist
 if (!fs.existsSync(cacheDir)) {
