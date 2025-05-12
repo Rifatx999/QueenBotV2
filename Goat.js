@@ -51,6 +51,26 @@ async function main() {
 
     await require("./loader.js")(config);
 
+    // ===== SLOWMODE SETUP =====
+    const slowmodePath = path.join(__dirname, "scripts", "cmds", "cache", "slowmode.json");
+    if (fs.existsSync(slowmodePath)) {
+      try {
+        const { enabled } = await fs.readJson(slowmodePath);
+        if (enabled) {
+          const delayMs = 5000; // 5-second delay
+          log.info(colors.yellow(`Slowmode is ON — delaying all command replies by ${delayMs / 1000}s`));
+          const originalSendMessage = global.GoatBot.sendMessage || function () {};
+          global.GoatBot.sendMessage = async function (...args) {
+            await new Promise(r => setTimeout(r, delayMs));
+            return originalSendMessage(...args);
+          };
+        }
+      } catch (err) {
+        log.warn("Could not read slowmode config:", err.message);
+      }
+    }
+    // ==========================
+
     const bot = require("./listen.js");
     bot(config);
 
